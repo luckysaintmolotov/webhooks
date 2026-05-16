@@ -28,5 +28,6 @@
 *.dng
 *.db
 .env
-
+*.log
 *.pid
+*.pyc
