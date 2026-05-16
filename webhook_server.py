@@ -31,7 +31,7 @@ def webhook():
     event_id = data.get("event_id",{})
     direct_url = session.get("direct_url",{})
     device_id_info = session.get("device",{})
-    device_id = device_id_info["name"],{}
+    device_id = (device_id_info["name"])
     
     def get_from_direct_url(event_id,direct_url,session_type,device_id):
             if direct_url:
@@ -60,13 +60,13 @@ def webhook():
                     # Log success with the saved filename.
                     print(f"Image Saved: {filename}")
                     save_record(direct_url, "success")
-                    send_discord_message(direct_url, "success", timestamp)
+                    send_discord_message(direct_url, "success", timestamp,event_id,session_type,device_id)
                 except Exception as e:
                     # On any failure (network, write permissions, etc.), log the error.
                     # (Consider more specific exception handling and returning an error response.)
                     print(f"Download Failed: {e}")
                     save_record(direct_url, "failed")
-                    send_discord_message(direct_url, "success", timestamp)
+                    send_discord_message(direct_url, "success", timestamp,event_id,session_type,device_id)
             else:
                     print("No direct_url in payload - nothing to save.")
     # From the session, get the "direct_url" field (expected to be an image URL).
