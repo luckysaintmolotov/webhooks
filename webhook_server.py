@@ -5,6 +5,7 @@ import datetime
 import requests
 import os
 import uuid
+import logsaint
 from db_handler import init_db, save_record, list_records
 from notify_discord import send_discord_message
 init_db()
@@ -81,6 +82,8 @@ def webhook():
 
 # Run the app when executed directly. Defaults to port 5000.
 if __name__ == "__main__":
+    logsaint.send_discord_message("RUNNING")
     app.run(port=5000)
-    print(f"RESULTS:\n")
-    print(f"\n".join(list_records(5)))
+    logsaint.send_discord_message("RESULTS")
+    logsaint.send_discord_message("OFFLINE")
+    
