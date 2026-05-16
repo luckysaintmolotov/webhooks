@@ -5,14 +5,9 @@ import datetime
 import requests
 import os
 import uuid
-#DB HANDLER 
 from db_handler import init_db, save_record, list_records
-
-#DISCORD NOTIFIER
 from notify_discord import send_discord_message
 init_db()
-# A small random id — was used for something
-id_random = uuid.uuid4()
 
 # Create the Flask application instance.
 app = Flask(__name__)
@@ -33,19 +28,26 @@ def webhook():
 
     # Safely extract the nested "session" object; default to an empty dict if missing.
     session = data.get("session", {})
-    event_id = data.get("event_id")
-
-    direct_url = session.get("direct_url")
-    device_id_info = session.get("device")
-    device_id = device_id_info["name"]
-    def get_image_from_direct_url(event_id,direct_url,session_type,device_id):
+    event_id = data.get("event_id",{})
+    direct_url = session.get("direct_url",{})
+    device_id_info = session.get("device",{})
+    device_id = device_id_info["name"],{}
+    
+    def get_from_direct_url(event_id,direct_url,session_type,device_id):
             if direct_url:
                 # Build a timestamp string to use in the filename (YYYYmmdd_HHMMSS).
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                # Note: you can include other identifiers (event id, session id) in the filename if available.
+            
                 os.makedirs(f"{DOWNLOAD_DIR}/{event_id}/{session_type}/{device_id}", exist_ok=True)
-                filename = os.path.join(f"{DOWNLOAD_DIR}/{event_id}/{session_type}/{device_id}", f"{timestamp}.jpg")
-
+                # Filter by session type and assign the correct file format                
+                if session_type in "video":
+                    filename = os.path.join(f"{DOWNLOAD_DIR}/{event_id}/{session_type}/{device_id}", f"{timestamp}.mp4")
+                if session_type in "still":
+                    filename = os.path.join(f"{DOWNLOAD_DIR}/{event_id}/{session_type}/{device_id}", f"{timestamp}.jpg")
+                if session_type in "gif":
+                    filename = os.path.join(f"{DOWNLOAD_DIR}/{event_id}/{session_type}/{device_id}", f"{timestamp}.gif")
+                    
+                    
                 try:
                     # Perform an HTTP GET to fetch the image bytes.
                     # (consider adding timeout, streaming, and response validation.)
@@ -71,10 +73,7 @@ def webhook():
 
 
     session_type = session.get("type")
-    if session_type:
-        if session_type in "gif":
-            get_image_from_direct_url(event_id,direct_url,session_type,device_id)
-
+    get_from_direct_url(event_id,direct_url,session_type,device_id)
 
     # Always return a simple JSON response and HTTP 200 to acknowledge the webhook.
     return jsonify({"status": "ok"}), 200
