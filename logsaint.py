@@ -1,13 +1,17 @@
 import requests,os
 from db_handler import list_records
 from dotenv import load_dotenv
+
 load_dotenv()
+
 DISCORD_SERVER_LOGGER_URL = os.getenv("DISCORD_SERVER_LOGGER_URL")
 def send_discord_message(status):
     if status in "RUNNING":
         content = f"""
 ------------------------------------------------------------------------------------------- 
-                                    @everyone SERVER IS RUNNING   
+@everyone 
+SERVER IS RUNNING 
+DONT PANIC  
 --------------------------------------------------------------------------------------------"""
         try: 
             response = requests.post(DISCORD_SERVER_LOGGER_URL, json={"content":content})
@@ -39,14 +43,11 @@ RESULTS:
                 
         except Exception as e:
             print(f"failed to send Discord message: {e}")
-        
-        
-            
     elif status in "OFFLINE":
         content = f"""
         
 ------------------------------------------------------------------------------------------- 
-                                    @everyone SERVER IS OFFLINE   
+                                                                @everyone SERVER IS OFFLINE   
 -------------------------------------------------------------------------------------------"""
         try: 
             response = requests.post(DISCORD_SERVER_LOGGER_URL, json={"content":content})
@@ -75,8 +76,21 @@ RESULTS:
                 
         except Exception as e:
             print(f"failed to send Discord message: {e}")
-                
+def bump_discord_user(user):
+    content = f"""
+-------------------------------------------------------------------------------------------    
+@{user} - webhook has been fired!!!!!!
+--------------------------------------------------------------------------------------------"""
+    try: 
+        response = requests.post(DISCORD_WEBHOOK_URL, json={"content":content})
+        if response.status_code == 204:
+            print("Discord Notification Sent")
+        else:
+            print(f"Discord error: {response.status_code}  {response.text}")
+    except Exception as e:
+        print(f"failed to send Discord message: {e}")                
+
 if __name__ == "__main__":
-    send_discord_message("ONLINE")
+    send_discord_message("RUNNING")
     send_discord_message("RESULTS")
     send_discord_message("OFFLINE")

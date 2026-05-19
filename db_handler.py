@@ -1,6 +1,7 @@
 import sqlite3
 import datetime
 import os
+
 DB_FILE = "db/webhook_data.db"
 os.makedirs("db", exist_ok=True)
 def init_db():
