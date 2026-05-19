@@ -2,7 +2,7 @@ Project: webhook-server (in development)
 
 Short description
 
-    Flask webhook that receives JSON payloads, downloads media from session.direct_url, saves files locally, records events in SQLite, and notifies a Discord webhook.
+    Simple Flask webhook that receives JSON payloads, downloads media from session.direct_url, saves files locally, records events in SQLite, and notifies a Discord webhook.
 
 Prerequisites
 
@@ -13,23 +13,23 @@ Prerequisites
 
 Quick setup
 
-    Clone repository:
-        git clone && cd
+    Clone repository and change into the project folder.
 
-    Create virtual environment and install dependencies:
+    Create a virtual environment and install dependencies:
         python -m venv .venv
         source .venv/bin/activate
         pip install -r requirements.txt
 
-    Create .env file in project root with:
-        DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
+    Create a .env file in the project root with, your Discord Webhook:
+        DISCORD_WEBHOOK_URL="your URL here"
 
-    Start the server (development):
+    Start the server locally:
         source .venv/bin/activate
         python webhook_server.py
         Server listens on port 5000 by default.
+    You can either funnel it yourself or use tailscale
 
-Run with run_server.sh (optional)
+Run with run_server.sh (optional *requires an active tailscale connection)
 
     Make script executable: chmod +x run_server.sh
     Usage:
@@ -38,62 +38,61 @@ Run with run_server.sh (optional)
         ./run_server.sh restart
         ./run_server.sh status
     Notes:
-        start uses .venv/bin/python and runs tailscale up + tailscale funnel 5000 (requires sudo).
+        start uses .venv/bin/python and may run tailscale up + tailscale funnel 5000.
         Adjust or remove tailscale calls if not needed.
+        This repo is meant as a small personal tool, so the shell helper is optional, and use is "HERE BE DRAGONS" so if something breaks, kid that's on you
 
 What the main files do
 
     webhook_server.py
         Flask app with POST /webhook endpoint.
         Downloads media from session.direct_url and saves it under downloads/{event_id}/{session_type}/{device_id}/.
-        Records each attempt in SQLite via db_handler and sends a Discord notification via notify_discord.
+        Records each attempt in SQLite via db_handler.
+        Sends a Discord notification via notify_discord.
     db_handler.py
         Initializes SQLite DB at db/webhook_data.db.
         Functions: init_db(), save_record(direct_url, status), list_records(LIMIT=10).
     notify_discord.py
-        Sends a simple message payload to DISCORD_WEBHOOK_URL using requests.
+        Sends a Discord content payload to DISCORD_WEBHOOK_URL using requests.
+    logsaint.py
+        Optional Discord status notifier for server lifecycle and results.
     requirements.txt
-        Exact package versions used in development.
+        Fixed package versions used in development.
     run_server.sh
-        Helper to run the Flask app in background and manage Tailscale funnel process.
+        Optional helper to start/stop the Flask app and manage Tailscale funnel.
 
 Known issues & TODO (in-development)
 
-    Input validation: payload parsing uses dict.get in places but some assignments are incorrect (see bugs below).
-    Error handling: network and file errors are broadly caught; return status codes currently always 200.
-    Concurrency: SQLite connections are created per call; consider connection pooling for high throughput.
-    File naming / collisions: filenames use timestamps only — consider adding uuid to avoid collisions for fast repeated events.
-    Security: direct_url is requested without validation; consider validating domain/headers and using streaming requests.
-    Discord notify: on exception, the notify path prints errors but does not affect response.
-    Logging: use Python logging instead of print for better level control and persistence.
-    Tests: add unit tests and integration tests for webhook handling, DB writes, and notify logic.
+    - Input validation is weak; missing event_id/session/direct_url may cause errors or be ignored.
+    - Error handling is broad and the webhook always returns HTTP 200.
+    - File downloads are saved without streaming or URL validation.
+    - Logging uses print() instead of a proper logging framework.
+    - Filenames use timestamps only, so collisions are possible for repeated events.
+    - logsaint.py uses incorrect membership checks for status values.
+    - notify_discord.py currently assumes event_id may be numeric when checking int(event_id) == 1.
 
-Bug summary (things to fix before production)
+Bug summary
 
-    db_handler.list_records builds strings using wrong tuple order (f"[{ts}] {status.upper()} -> {url}" for ts, url, status) — order mismatch.
     webhook_server.py:
-        event_id, direct_url, and device_id extraction use {} as defaults and build device_id incorrectly:
-            event_id = data.get("event_id",{}) should default to None or "" and treated as string.
-            direct_url = session.get("direct_url",{}) should default to None.
-            device handling sets device_id = device_id_info["name"],{} which produces a tuple; should be device_id_info.get("name", "unknown").
-        get_from_direct_url: session_type checks use if session_type in "video": which checks characters, not equality; should use == or in a list.
-        get_from_direct_url uses send_discord_message(..., "success", timestamp) in except block (should send "failed").
-        When direct_url is falsy, code prints fallback but still returns 200; consider returning 400 for missing required fields.
-        Filenames only use timestamp and not unique identifiers — collisions possible.
-    notify_discord.py content string missing colon/space before URL ("URL{direct_url}").
+        - event_id and direct_url defaults should not use {}.
+        - device_id extraction is fragile if session or device.name is missing.
+        - session_type checks should use equality instead of membership in a string.
+        - error handling currently sends success notifications even on failure.
+        - missing direct_url still returns 200.
+    db_handler.py:
+        - current list_records formatting is correct for the selected columns.
+    notify_discord.py:
+        - content generation is duplicated and could be simplified.
+        - int(event_id) == 1 may crash for non-numeric event IDs.
 
 Recommended quick fixes
 
-    Fix device_id extraction:
-        device_id = session.get("device", {}).get("name", "unknown")
-    Use equality checks for session_type:
-        if session_type == "video": ...
-    Correct error notify call to use "failed" status in except.
-    Fix db_handler.list_records tuple unpacking order.
-    Validate direct_url and event_id presence; return 400 if missing.
-    Improve filename uniqueness: use f"{timestamp}{uuid.uuid4().hex[:8]}.ext
-    Add timeouts and streaming to requests.get (stream=True) and check response.status_code.
-    Replace print() with logging and rotate logs_
+    - Use safe lookups for nested session fields.
+    - Validate required payload fields and return 400 for invalid input.
+    - Send failure status on download exceptions.
+    - Use explicit session_type comparisons.
+    - Add UUID or unique suffix to filenames to avoid collisions.
+    - Switch from print() to Python logging when ready.
 
 Example sample payload
 
@@ -101,10 +100,11 @@ Example sample payload
 
 Database schema
 
-    downloads (id INTEGER PK AUTOINCREMENT, timestamp TEXT, direct_url TEXT, status TEXT_
+    downloads (id INTEGER PK AUTOINCREMENT, timestamp TEXT, direct_url TEXT, status TEXT)
 
 Development tips
 
-    Run the app locally and send test payloads with curl or Postman.
-    Inspect webhook_server.log and funnel.log when using run_server.sh.
-    Use ngrok or Tailscale funnel only if you need external access; 
+    - Run the app locally and send test payloads with curl or Postman.
+    - Keep this repo as lightweight personal tooling rather than production-grade deployment.
+    - Use ngrok or Tailscale funnel only if you need external exposure.
+ 
